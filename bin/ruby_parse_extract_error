@@ -1,10 +1,5 @@
 #!/usr/bin/ruby -ws
 
-$d ||= false
-$d ||= ENV["DELETE"]
-$q ||= false
-$q ||= ENV["QUIET"]
-
 require 'rubygems'
 require 'ruby_parser'
 
@@ -17,8 +12,6 @@ class Racc::Parser
     pre_error = src[0...ss.pos]
 
     defs = pre_error.grep(/^ *def/)
-
-    raise "can't figure out where the bad code starts" unless defs.last
 
     last_def_indent = defs.last[/^ */]
 
@@ -35,9 +28,7 @@ class Racc::Parser
   def retest_for_errors defs
     parser = self.class.new
 
-    parser.process(defs.join("\n\n"))
-  rescue SyntaxError, StandardError
-    nil
+    parser.process(defs.join("\n\n")) rescue nil
   end
 end
 
@@ -49,22 +40,32 @@ def expand path
   end
 end
 
-def process_error parser
-  defs = parser.extract_defs
+parser = Ruby19Parser.new
 
-  orig_size = defs.size
+ARGV.each do |file|
+  ruby = file == "-" ? $stdin.read : File.read(file)
 
-  if parser.retest_for_errors defs then
-    warn "Can't reproduce error with just methods, punting..."
-    return
-  end
+  begin
+    $stderr.print "Validating #{file}: "
+    parser.process(ruby, file)
+    $stderr.puts "good"
+  rescue RuntimeError, Racc::ParseError => e
+    $stderr.puts "error: #{e.message.strip}"
+    $stderr.puts
 
-  catch :extract_done do
+    defs = parser.extract_defs
+
+    abort "Can't reproduce error with just methods, punting..." if
+      parser.retest_for_errors defs
+
+    mandatory = defs.pop
+
     (1..defs.size).each do |perm_size|
       defs.combination(perm_size).each do |trial|
+        trial << mandatory
         unless parser.retest_for_errors trial then
           puts trial.join "\n"
-          throw :extract_done
+          abort "reduced repro found!"
         end
       end
     end

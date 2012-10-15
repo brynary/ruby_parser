@@ -910,21 +910,8 @@ module RubyParserStuff
     Timeout.timeout time do
       raise "bad val: #{str.inspect}" unless String === str
 
-      str.lines.first(2).find { |s| s[/^# encoding: (.+)/, 1] }
-      encoding = $1
-
-      str = str.dup
-
-      if encoding then
-        if defined?(Encoding) then
-          str.force_encoding(encoding).encode! "utf-8"
-        else
-          warn "Skipping magic encoding comment"
-        end
-      end
-
       self.file = file
-      self.lexer.src = str
+      self.lexer.src = str.dup
 
       @yydebug = ENV.has_key? 'DEBUG'
 

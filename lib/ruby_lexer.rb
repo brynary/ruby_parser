@@ -1,18 +1,4 @@
-# encoding: US-ASCII
-
 class RubyLexer
-
-  IDENT_CHAR_RE = case RUBY_VERSION
-                  when /^1\.8/ then
-                    /[\w\x80-\xFF]/
-                  when /^(1\.9|2\.0)/ then # HACK - matching 2.0 for now
-                    /[\w\u0080-\uFFFF]/u
-                  else
-                    raise "bork"
-                  end
-
-  IDENT_RE = /^#{IDENT_CHAR_RE}+/
-
   attr_accessor :command_start
   attr_accessor :cmdarg
   attr_accessor :cond
@@ -787,7 +773,7 @@ class RubyLexer
           self.lex_state = :expr_dot
           self.yacc_value = "::"
           return :tCOLON2
-        elsif ! is_end? && src.scan(/:([a-zA-Z_]#{IDENT_CHAR_RE}*(?:[?!]|=(?!>))?)/) then
+        elsif ! is_end? && src.scan(/:([a-zA-Z_]\w*(?:[?!]|=(?!>))?)/) then
           # scanning shortcut to symbols
           self.yacc_value = src[1]
           self.lex_state = :expr_end
@@ -1243,12 +1229,12 @@ class RubyLexer
       if src.scan(/\004|\032|\000/) || src.eos? then # ^D, ^Z, EOF
         return RubyLexer::EOF
       else # alpha check
-        unless src.check IDENT_RE then
+        if src.scan(/\W/) then
           rb_compile_error "Invalid char #{src.matched.inspect} in expression"
         end
       end
 
-      self.token = src.matched if self.src.scan IDENT_RE
+      self.token = src.matched if self.src.scan(/\w+/)
 
       return process_token(command_state)
     end
@@ -1329,7 +1315,7 @@ class RubyLexer
 
   def process_token(command_state)
 
-    token << src.matched if token =~ IDENT_RE && src.scan(/[\!\?](?!=)/)
+    token << src.matched if token =~ /^\w/ && src.scan(/[\!\?](?!=)/)
 
     result = nil
     last_state = lex_state
